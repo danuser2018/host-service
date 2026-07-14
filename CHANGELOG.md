@@ -23,6 +23,7 @@ Los cambios se agrupan en las siguientes categorías:
 
 ### Añadido
 
+- Configuración de acceso a las skills de `home-assistant` mediante un enlace simbólico en `.agent/skills`.
 - Fichero `CONTRIBUTING.md` con el flujo de trabajo Trunk Based Development,
   convenciones de commits, guía de Pull Requests y buenas prácticas para
   desarrollo asistido con IA.
