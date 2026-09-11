@@ -10,5 +10,6 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8007
     LOG_LEVEL: str = "INFO"
+    SECURITY_SERVICE_BASE_URL: str = "http://security-service:8000"
 
 settings = Settings()

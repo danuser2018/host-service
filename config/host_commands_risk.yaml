@@ -1,0 +1,9 @@
+commands:
+  - name: calculator
+    risk: low
+  - name: github
+    risk: low
+  - name: backup
+    risk: medium
+  - name: format-disk
+    risk: high

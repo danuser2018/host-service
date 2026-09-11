@@ -7,13 +7,22 @@ from src.services.audio import HostAudioServiceError
 from src.models.error import ErrorResponse
 import logging
 
+from contextlib import asynccontextmanager
+from src.services.command_catalog import publish_command_catalog
+
 logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await publish_command_catalog()
+    yield
 
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Host Service",
         description="Host Abstraction Layer for Nova-2",
-        version="1.0.0"
+        version="1.1.0",
+        lifespan=lifespan
     )
 
     @app.exception_handler(HostAudioServiceError)
