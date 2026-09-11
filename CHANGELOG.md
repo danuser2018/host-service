@@ -17,6 +17,21 @@ Los cambios se agrupan en las siguientes categorías:
 - **Corregido** — corrección de errores.
 - **Seguridad** — correcciones de vulnerabilidades.
 
+## [1.1.0] - 2026-09-11
+
+### Añadido
+- Integración con **Security Service** (`security-service`) para la publicación del catálogo de comandos del sistema y sus niveles de riesgo asociados (política `lookup`).
+- Fichero de configuración `config/host_commands_risk.yaml` con el catálogo inicial de comandos dinámicos y sus niveles de riesgo (`calculator` [low], `github` [low], `backup` [medium], `format-disk` [high]).
+- Módulo `src/services/command_catalog.py`:
+  - Función `load_command_catalog`: parseo y carga de comandos desde `config/host_commands_risk.yaml` con fallback automático a `DEFAULT_COMMANDS`.
+  - Función asíncrona `publish_command_catalog`: publicación síncrona HTTP mediante `POST /v1/security/tables/host_commands` hacia `security-service`.
+- Variable de configuración `SECURITY_SERVICE_BASE_URL` en `src/config.py` (por defecto `http://security-service:8000`).
+- Suite de pruebas unitarias en `tests/test_command_catalog.py` para validar la carga de configuración, fallbacks ante ficheros ausentes y la publicación HTTP con manejo de errores.
+
+### Cambiado
+- Añadido context manager `lifespan` en `src/app.py` para invocar automáticamente `publish_command_catalog()` durante el arranque del microservicio.
+- Incrementada la versión de la aplicación a `1.1.0` en `src/app.py`.
+
 ---
 
 ## [1.0.0] - 2026-07-15
