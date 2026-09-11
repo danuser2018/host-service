@@ -17,6 +17,31 @@ Los cambios se agrupan en las siguientes categorías:
 - **Corregido** — corrección de errores.
 - **Seguridad** — correcciones de vulnerabilidades.
 
+## [1.2.0] - 2026-09-11
+
+### Añadido
+- Capacidad de ejecución segura y desacoplada de comandos y aplicaciones del host mediante el endpoint `POST /v1/commands/execute`.
+- Catálogo unificado y declarativo en `config/host_commands.yaml` como fuente única de verdad para la definición de argumentos (`argv`) y niveles de riesgo (`risk`).
+- Componente `CommandRegistry` (`src/services/command_registry.py`) con política Fail Closed en el arranque para validación estricta del catálogo YAML, unicidad de nombres y exportación filtrada a `security-service`.
+- Componente `CommandExecutor` (`src/services/command_executor.py`) que utiliza `subprocess.Popen` sin shell (`shell=False`), con aislamiento de grupo de procesos (`start_new_session=True`) y captura segura de excepciones del sistema operativo (`FileNotFoundError`, `PermissionError`, `OSError`).
+- Modelos Pydantic v2 en `src/models/commands.py`: `RiskLevel`, `HostCommand`, `ExecuteCommandRequest`, `ExecuteCommandResponse`, `SecurityCommandEntry` y `SecurityCatalogPublishPayload`.
+- Dependencia `pyyaml>=6.0.1` en `requirements.txt`.
+- Variable de configuración `HOST_COMMANDS_FILE` en `src/config.py`.
+- Códigos de error y respuestas estandarizadas bajo ADR-004 (`COMMAND_NOT_FOUND`, `COMMAND_EXECUTION_FAILED`, `VALIDATION_ERROR`).
+- Configuración de `signal.signal(signal.SIGCHLD, signal.SIG_IGN)` en el `lifespan` de FastAPI para prevención de procesos zombies en Linux.
+- Suites de pruebas unitarias y de integración en `tests/test_command_registry.py`, `tests/test_command_executor.py` y `tests/test_commands_api.py`.
+
+### Cambiado
+- Migrada la publicación del catálogo de seguridad a `security-service` para consumir directamente de `CommandRegistry`.
+- Incrementada la versión de la aplicación a `1.2.0` en `src/app.py`.
+- Actualizado `tests/test_command_catalog.py` para probar la publicación con el catálogo filtrado y manejo de fallos de red.
+
+### Eliminado
+- Eliminado el módulo obsoleto `src/services/command_catalog.py` tras migrar todas sus responsabilidades a `src/services/command_registry.py`.
+- Eliminado el archivo de configuración redundante `config/host_commands_risk.yaml`.
+
+---
+
 ## [1.1.0] - 2026-09-11
 
 ### Añadido
