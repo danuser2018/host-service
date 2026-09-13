@@ -8,7 +8,12 @@ from src.services.command_executor import CommandExecutor, CommandExecutionError
 
 def test_execute_command_success():
     executor = CommandExecutor()
-    cmd = HostCommand(name="calculator", command=["gnome-calculator"], risk=RiskLevel.LOW)
+    cmd = HostCommand(
+        name="calculator",
+        command=["gnome-calculator"],
+        risk=RiskLevel.LOW,
+        phrases=["calculadora"],
+    )
 
     mock_process = MagicMock()
     mock_process.pid = 12345
@@ -29,7 +34,12 @@ def test_execute_command_success():
 
 def test_execute_command_file_not_found():
     executor = CommandExecutor()
-    cmd = HostCommand(name="backup", command=["/usr/local/bin/nonexistent-tool"], risk=RiskLevel.MEDIUM)
+    cmd = HostCommand(
+        name="backup",
+        command=["/usr/local/bin/nonexistent-tool"],
+        risk=RiskLevel.MEDIUM,
+        phrases=["backup"],
+    )
 
     with patch("subprocess.Popen", side_effect=FileNotFoundError("No such file or directory")):
         with pytest.raises(CommandExecutionError, match="Failed to execute host command 'backup'"):
@@ -38,7 +48,12 @@ def test_execute_command_file_not_found():
 
 def test_execute_command_permission_denied():
     executor = CommandExecutor()
-    cmd = HostCommand(name="restricted", command=["/usr/local/bin/restricted-tool"], risk=RiskLevel.HIGH)
+    cmd = HostCommand(
+        name="restricted",
+        command=["/usr/local/bin/restricted-tool"],
+        risk=RiskLevel.HIGH,
+        phrases=["restricted"],
+    )
 
     with patch("subprocess.Popen", side_effect=PermissionError("Permission denied")):
         with pytest.raises(CommandExecutionError, match="Failed to execute host command 'restricted'"):
@@ -47,7 +62,12 @@ def test_execute_command_permission_denied():
 
 def test_execute_command_os_error():
     executor = CommandExecutor()
-    cmd = HostCommand(name="broken", command=["bad-command"], risk=RiskLevel.LOW)
+    cmd = HostCommand(
+        name="broken",
+        command=["bad-command"],
+        risk=RiskLevel.LOW,
+        phrases=["broken"],
+    )
 
     with patch("subprocess.Popen", side_effect=OSError("Exec format error")):
         with pytest.raises(CommandExecutionError, match="Failed to execute host command 'broken'"):
@@ -57,7 +77,12 @@ def test_execute_command_os_error():
 def test_execute_command_args_isolation():
     executor = CommandExecutor()
     dangerous_arg = "/tmp; rm -rf /"
-    cmd = HostCommand(name="list-files", command=["ls", "-la", dangerous_arg], risk=RiskLevel.LOW)
+    cmd = HostCommand(
+        name="list-files",
+        command=["ls", "-la", dangerous_arg],
+        risk=RiskLevel.LOW,
+        phrases=["list files"],
+    )
 
     mock_process = MagicMock()
     mock_process.pid = 9999

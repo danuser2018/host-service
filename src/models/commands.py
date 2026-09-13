@@ -1,6 +1,8 @@
+from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
+from nova_event_bus import Event, event
 
 
 class RiskLevel(str, Enum):
@@ -10,9 +12,10 @@ class RiskLevel(str, Enum):
 
 
 class HostCommand(BaseModel):
-    name: str = Field(..., min_length=1, description="Unique logical identifier for the command")
-    command: List[str] = Field(..., min_length=1, description="Static argument vector (argv) to execute")
-    risk: RiskLevel = Field(..., description="Security risk level associated with this command")
+    name: str = Field(..., min_length=1, description="Unique logical command identifier")
+    command: List[str] = Field(..., min_length=1, description="Physical command and static argv (private to host-service)")
+    risk: RiskLevel = Field(..., description="User-configured risk classification")
+    phrases: List[str] = Field(..., min_length=1, description="Natural-language trigger phrases for CommandResolver")
 
     @field_validator("command")
     @classmethod
@@ -23,6 +26,16 @@ class HostCommand(BaseModel):
             if not isinstance(arg, str) or not arg.strip():
                 raise ValueError("Command argv elements must be non-empty strings.")
         return v
+
+    @field_validator("phrases")
+    @classmethod
+    def validate_phrases(cls, v: List[str]) -> List[str]:
+        if not v:
+            raise ValueError("Phrases list must not be empty.")
+        cleaned = [p.strip() for p in v if isinstance(p, str) and p.strip()]
+        if not cleaned:
+            raise ValueError("Command must have at least one non-empty trigger phrase.")
+        return cleaned
 
 
 class ExecuteCommandRequest(BaseModel):
@@ -35,10 +48,15 @@ class ExecuteCommandResponse(BaseModel):
     pid: Optional[int] = Field(None, description="Operating system Process ID of the spawned process")
 
 
-class SecurityCommandEntry(BaseModel):
+@dataclass
+class PublicCommandEntry:
     name: str
     risk: str
+    phrases: List[str]
 
 
-class SecurityCatalogPublishPayload(BaseModel):
-    commands: List[SecurityCommandEntry]
+@event("event.host.commands.available")
+@dataclass
+class HostCommandsAvailableEvent(Event):
+    version: int
+    commands: List[PublicCommandEntry]
