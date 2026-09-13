@@ -6,3 +6,4 @@ pytest>=8.0.0
 pytest-asyncio>=0.23.0
 httpx>=0.27.0
 pyyaml>=6.0.1
+nova-event-bus @ git+https://github.com/danuser2018/nova-event-bus.git@1.1.0

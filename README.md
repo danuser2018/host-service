@@ -9,8 +9,8 @@
 - **FastAPI**: Backend asíncrono, ligero y rápido.
 - **Acceso a pactl**: Controla el volumen y el estado de silencio mediante subprocesos efímeros invocando la utilidad nativa de PulseAudio/PipeWire.
 - **Ejecución Segura de Comandos**: Ejecución de aplicaciones locales registradas mediante identificadores lógicos (`POST /v1/commands/execute`) usando `subprocess.Popen` sin invocación de shell (`shell=False`), desacoplada en una nueva sesión (`start_new_session=True`) y no bloqueante.
-- **Catálogo Cerrado Declarativo**: Fuente única de verdad en `config/host_commands.yaml` para definición de comandos (`argv`) y niveles de riesgo (`risk`). Validación estricta con política Fail Closed en el arranque.
-- **Sincronización con Security Service**: Publicación automática del catálogo de riesgos (`name` + `risk`) hacia `security-service` en el arranque.
+- **Catálogo Central Declarativo**: Carga `config/commands.yaml` como fuente única de verdad para definición de comandos (`argv`), niveles de riesgo (`risk`) y frases naturales (`phrases`). Validación estricta con política Fail Closed en el arranque.
+- **Distribución Asíncrona vía NATS**: Publicación periódica (arranque y cada 60s) de la proyección pública en `event.host.commands.available` hacia `orchestrator` y `security-service`, eliminando el acoplamiento HTTP directo con `security-service`.
 - **Validación robusta y ADR-004**: Tipado y validaciones estrictas con Pydantic v2 y respuestas de error estandarizadas.
 - **Seguridad**: Ejecutado como un servicio systemd de usuario (`systemd --user`) con los privilegios del usuario de la sesión activa (`DISPLAY`, `WAYLAND_DISPLAY`, `DBUS_SESSION_BUS_ADDRESS`).
 
@@ -25,8 +25,9 @@ El servicio carga su configuración utilizando variables de entorno. Puedes decl
 | `HOST` | `str` | `0.0.0.0` | Dirección IP de red a la que se vincula el servidor |
 | `PORT` | `int` | `8007` | Puerto en el que escucha el servidor |
 | `LOG_LEVEL` | `str` | `INFO` | Nivel de logs (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
-| `SECURITY_SERVICE_BASE_URL` | `str` | `http://security-service:8000` | URL base de `security-service` para la publicación de riesgos |
-| `HOST_COMMANDS_FILE` | `str` | `config/host_commands.yaml` | Ruta al fichero YAML de catálogo unificado de comandos de host |
+| `NATS_URL` | `str` | `nats://localhost:4222` | URL de conexión al broker NATS |
+| `CATALOG_PUBLISH_INTERVAL_SECONDS` | `float` | `60.0` | Intervalo en segundos entre publicaciones del catálogo de comandos |
+| `COMMANDS_FILE` | `str` | `config/commands.yaml` | Ruta al fichero YAML centralizado con el catálogo de comandos de Nova |
 
 ---
 
@@ -152,9 +153,9 @@ Ejecuta de forma desacoplada y no bloqueante un comando local registrado en el c
 
 ---
 
-## Catálogo Declarativo de Comandos (`config/host_commands.yaml`)
+## Catálogo Centralizado de Comandos (`config/commands.yaml`)
 
-El archivo `config/host_commands.yaml` actúa como la **fuente única de verdad** para los comandos del host, definiendo su vector de argumentos (`command` / `argv`) y su nivel de riesgo (`risk`). El servicio valida este archivo con una política **Fail Closed** durante el arranque.
+El archivo `config/commands.yaml` actúa como la **fuente única de verdad** (*Single Source of Truth*) para los comandos de Nova, definiendo su identificador lógico (`name`), su vector privado de argumentos físicos (`command` / `argv`), su nivel de riesgo (`risk`) y sus frases de activación en lenguaje natural (`phrases`). El servicio valida este archivo con una política **Fail-Closed** durante el arranque.
 
 ```yaml
 commands:
@@ -162,15 +163,24 @@ commands:
     command:
       - gnome-calculator
     risk: low
+    phrases:
+      - calculadora
+      - maquina de calcular
+      - el programa de cuentas
+      - abre la calculadora
 
   - name: backup
     command:
       - /usr/local/bin/nova-backup
       - --quick
     risk: medium
+    phrases:
+      - copia de seguridad
+      - hacer backup
+      - respaldar datos
 ```
 
-Durante el arranque, `host-service` extrae el subconjunto de pares `{"name": str, "risk": str}` y lo publica automáticamente a `security-service` vía `POST /v1/security/tables/host_commands`.
+Durante el arranque y de forma periódica (cada 60 segundos por defecto, configurable mediante `CATALOG_PUBLISH_INTERVAL_SECONDS`), `host-service` publica una **proyección pública** a través de NATS en el subject `event.host.commands.available` conteniendo los campos `name`, `risk` y `phrases`. Por aislamiento y seguridad, el ejecutable físico (`command` / `argv`) **nunca** se incluye en la proyección pública distribuida, siendo consumido de forma reactiva y asíncrona por `orchestrator` y `security-service`.
 
 ---
 

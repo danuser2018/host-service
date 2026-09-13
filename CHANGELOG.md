@@ -17,6 +17,26 @@ Los cambios se agrupan en las siguientes categorías:
 - **Corregido** — corrección de errores.
 - **Seguridad** — correcciones de vulnerabilidades.
 
+## [1.3.0] - 2026-09-12
+
+### Añadido
+- Integración con el bus de eventos NATS (`nova-event-bus @ 1.1.0`) para distribución periódica y asíncrona del catálogo de comandos.
+- Nuevo servicio `CatalogPublisher` (`src/services/catalog_publisher.py`) para emitir la proyección pública a NATS (`event.host.commands.available`) en el arranque y cada 60 segundos.
+- Modelos de evento tipados `PublicCommandEntry` y `HostCommandsAvailableEvent` en `src/models/commands.py`.
+- Campo obligatorio `phrases: List[str]` en `HostCommand` para almacenar las frases en lenguaje natural de activación con validación estricta y limpieza de espacios redundantes.
+- Variables de entorno `COMMANDS_FILE`, `NATS_URL` y `CATALOG_PUBLISH_INTERVAL_SECONDS` en `src/config.py`.
+- Nueva suite de pruebas `tests/test_catalog_publisher.py`.
+
+### Cambiado
+- `CommandRegistry` ahora carga y valida el catálogo centralizado con frases y descarta dependencias HTTP síncronas hacia `security-service`.
+- Incrementada versión del servicio a `1.3.0` en `src/app.py`.
+
+### Eliminado
+- Eliminado el archivo de configuración local obsoleto `config/host_commands.yaml` a favor del catálogo centralizado `config/commands.yaml`.
+- Eliminada la función HTTP síncrona `publish_command_catalog` y la variable de entorno `SECURITY_SERVICE_BASE_URL`.
+
+---
+
 ## [1.2.0] - 2026-09-11
 
 ### Añadido

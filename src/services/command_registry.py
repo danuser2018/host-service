@@ -3,10 +3,8 @@ import yaml
 import logging
 from typing import Dict, List, Optional
 from pydantic import ValidationError
-import httpx
 
 from src.models.commands import HostCommand
-from src.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +46,7 @@ class CommandRegistry:
                 raise InvalidCatalogError(f"Invalid entry at index {idx} in {file_path}: Entry must be a dictionary.")
 
             name = item.get("name")
-            if not name or not isinstance(name, str):
+            if not name or not isinstance(name, str) or not name.strip():
                 raise InvalidCatalogError(f"Invalid entry at index {idx} in {file_path}: Missing or invalid 'name'.")
 
             if name in names_seen:
@@ -73,26 +71,5 @@ class CommandRegistry:
         """Returns the complete list of registered HostCommand objects."""
         return list(self._commands.values())
 
-    def export_security_catalog(self) -> List[Dict[str, str]]:
-        """Exports the security catalog containing only name and risk string value."""
-        return [{"name": cmd.name, "risk": cmd.risk.value} for cmd in self._commands.values()]
-
 
 command_registry = CommandRegistry()
-
-
-async def publish_command_catalog(registry: Optional[CommandRegistry] = None, base_url: Optional[str] = None) -> bool:
-    reg = registry or command_registry
-    target_url = base_url or settings.SECURITY_SERVICE_BASE_URL
-    url = f"{target_url.rstrip('/')}/v1/security/tables/host_commands"
-    commands_payload = reg.export_security_catalog()
-    logger.info(f"Publishing {len(commands_payload)} host commands to security-service at {url}")
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            res = await client.post(url, json={"commands": commands_payload})
-            res.raise_for_status()
-            logger.info("Successfully published host_commands to security-service")
-            return True
-    except Exception as exc:
-        logger.warning(f"Failed to publish host_commands catalog to security-service: {exc}")
-        return False

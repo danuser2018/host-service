@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 
 from src.app import create_app
@@ -17,11 +17,13 @@ def isolated_registry():
             name="calculator",
             command=["gnome-calculator"],
             risk=RiskLevel.LOW,
+            phrases=["calculadora"],
         ),
         "backup": HostCommand(
             name="backup",
             command=["/usr/local/bin/nova-backup"],
             risk=RiskLevel.MEDIUM,
+            phrases=["copia de seguridad"],
         ),
     }
     return registry
@@ -29,13 +31,16 @@ def isolated_registry():
 
 @pytest.fixture
 def client(isolated_registry):
-    app = create_app()
-    app.dependency_overrides[get_command_registry] = lambda: isolated_registry
-    with patch("src.services.command_registry.publish_command_catalog") as mock_publish:
-        mock_publish.return_value = True
+    with patch("nova_event_bus.NatsEventBus.connect", new_callable=AsyncMock), \
+         patch("nova_event_bus.NatsEventBus.disconnect", new_callable=AsyncMock), \
+         patch("src.services.catalog_publisher.CatalogPublisher.publish_catalog", new_callable=AsyncMock) as mock_pub, \
+         patch("src.services.catalog_publisher.CatalogPublisher.start"):
+        mock_pub.return_value = True
+        app = create_app()
+        app.dependency_overrides[get_command_registry] = lambda: isolated_registry
         with TestClient(app) as test_client:
             yield test_client
-    app.dependency_overrides.clear()
+        app.dependency_overrides.clear()
 
 
 def test_execute_endpoint_success(client):

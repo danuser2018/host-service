@@ -1,7 +1,7 @@
 import pytest
 import os
 from src.services.command_registry import CommandRegistry, InvalidCatalogError
-from src.models.commands import RiskLevel
+from src.models.commands import HostCommand, RiskLevel
 
 
 def test_load_valid_catalog(tmp_path):
@@ -11,17 +11,25 @@ commands:
     command:
       - gnome-calculator
     risk: low
+    phrases:
+      - calculadora
+      - maquina de calcular
   - name: backup
     command:
       - /usr/local/bin/nova-backup
       - --quick
     risk: medium
+    phrases:
+      - copia de seguridad
+      - hacer backup
   - name: format-disk
     command:
       - /usr/local/bin/nova-format-disk
     risk: high
+    phrases:
+      - formatear disco externo
 """
-    file_path = tmp_path / "host_commands.yaml"
+    file_path = tmp_path / "commands.yaml"
     file_path.write_text(catalog_content, encoding="utf-8")
 
     registry = CommandRegistry()
@@ -34,6 +42,7 @@ commands:
     assert calc.name == "calculator"
     assert calc.command == ["gnome-calculator"]
     assert calc.risk == RiskLevel.LOW
+    assert calc.phrases == ["calculadora", "maquina de calcular"]
 
 
 def test_load_missing_file_fails():
@@ -75,9 +84,11 @@ commands:
   - name: editor
     command: ["gedit"]
     risk: low
+    phrases: ["abrir gedit"]
   - name: editor
     command: ["nano"]
     risk: low
+    phrases: ["abrir nano"]
 """
     file_path = tmp_path / "duplicate.yaml"
     file_path.write_text(catalog_content, encoding="utf-8")
@@ -93,6 +104,7 @@ commands:
   - name: broken
     command: []
     risk: low
+    phrases: ["broken"]
 """
     file_path = tmp_path / "empty_argv.yaml"
     file_path.write_text(catalog_content, encoding="utf-8")
@@ -108,6 +120,7 @@ commands:
   - name: broken
     command: [""]
     risk: low
+    phrases: ["broken"]
 """
     file_path = tmp_path / "blank_argv.yaml"
     file_path.write_text(catalog_content, encoding="utf-8")
@@ -117,12 +130,79 @@ commands:
         registry.load_from_file(str(file_path))
 
 
+def test_load_missing_phrases_fails(tmp_path):
+    catalog_content = """
+commands:
+  - name: broken
+    command: ["ls"]
+    risk: low
+"""
+    file_path = tmp_path / "missing_phrases.yaml"
+    file_path.write_text(catalog_content, encoding="utf-8")
+
+    registry = CommandRegistry()
+    with pytest.raises(InvalidCatalogError, match="Validation error for command 'broken'"):
+        registry.load_from_file(str(file_path))
+
+
+def test_load_empty_phrases_fails(tmp_path):
+    catalog_content = """
+commands:
+  - name: broken
+    command: ["ls"]
+    risk: low
+    phrases: []
+"""
+    file_path = tmp_path / "empty_phrases.yaml"
+    file_path.write_text(catalog_content, encoding="utf-8")
+
+    registry = CommandRegistry()
+    with pytest.raises(InvalidCatalogError, match="Validation error for command 'broken'"):
+        registry.load_from_file(str(file_path))
+
+
+def test_load_blank_phrases_fails(tmp_path):
+    catalog_content = """
+commands:
+  - name: broken
+    command: ["ls"]
+    risk: low
+    phrases: ["   ", ""]
+"""
+    file_path = tmp_path / "blank_phrases.yaml"
+    file_path.write_text(catalog_content, encoding="utf-8")
+
+    registry = CommandRegistry()
+    with pytest.raises(InvalidCatalogError, match="Validation error for command 'broken'"):
+        registry.load_from_file(str(file_path))
+
+
+def test_load_cleans_phrases_whitespace(tmp_path):
+    catalog_content = """
+commands:
+  - name: calc
+    command: ["gnome-calculator"]
+    risk: low
+    phrases:
+      - "  calculadora  "
+      - " maquina de calcular "
+"""
+    file_path = tmp_path / "clean_phrases.yaml"
+    file_path.write_text(catalog_content, encoding="utf-8")
+
+    registry = CommandRegistry()
+    registry.load_from_file(str(file_path))
+    calc = registry.get("calc")
+    assert calc.phrases == ["calculadora", "maquina de calcular"]
+
+
 def test_load_invalid_risk_fails(tmp_path):
     catalog_content = """
 commands:
   - name: dangerous
     command: ["rm", "-rf"]
     risk: critical
+    phrases: ["destruir todo"]
 """
     file_path = tmp_path / "invalid_risk.yaml"
     file_path.write_text(catalog_content, encoding="utf-8")
@@ -138,6 +218,7 @@ commands:
   - name: browser
     command: ["firefox"]
     risk: medium
+    phrases: ["abrir navegador"]
 """
     file_path = tmp_path / "browser.yaml"
     file_path.write_text(catalog_content, encoding="utf-8")
@@ -150,6 +231,7 @@ commands:
     assert cmd.name == "browser"
     assert cmd.command == ["firefox"]
     assert cmd.risk == RiskLevel.MEDIUM
+    assert cmd.phrases == ["abrir navegador"]
 
 
 def test_get_unknown_command(tmp_path):
@@ -158,6 +240,7 @@ commands:
   - name: browser
     command: ["firefox"]
     risk: medium
+    phrases: ["abrir navegador"]
 """
     file_path = tmp_path / "browser.yaml"
     file_path.write_text(catalog_content, encoding="utf-8")
@@ -166,30 +249,3 @@ commands:
     registry.load_from_file(str(file_path))
 
     assert registry.get("nonexistent") is None
-
-
-def test_export_security_catalog(tmp_path):
-    catalog_content = """
-commands:
-  - name: calculator
-    command: ["gnome-calculator"]
-    risk: low
-  - name: backup
-    command: ["/usr/local/bin/nova-backup", "--quick"]
-    risk: medium
-"""
-    file_path = tmp_path / "catalog.yaml"
-    file_path.write_text(catalog_content, encoding="utf-8")
-
-    registry = CommandRegistry()
-    registry.load_from_file(str(file_path))
-
-    exported = registry.export_security_catalog()
-    assert exported == [
-        {"name": "calculator", "risk": "low"},
-        {"name": "backup", "risk": "medium"},
-    ]
-    # Ensure physical command is not leaked
-    for item in exported:
-        assert "command" not in item
-        assert "argv" not in item
